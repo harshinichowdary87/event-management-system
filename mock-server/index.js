@@ -1,6 +1,5 @@
 const { http, HttpResponse, delay } = require('msw');
 const { setupServer } = require('msw/node');
-const user = require('./mocks/user.json');
  
 let requestCount = 0
 const userStore = {
@@ -136,3 +135,32 @@ const listenMock = () => {
 }
 
 module.exports = listenMock;
+module.exports.server = server;
+module.exports.closeMock = () => server.close();
+
+// expose internal helper for tests to simulate addEvent logic directly
+async function handleAddEvent(requestBody) {
+  requestCount++;
+  if (requestCount <= 5 || requestCount == 0) {
+    const body = requestBody;
+    eventStore.addEvent(body);
+    userStore.addEventTouUser(body.userId, body.id);
+    return { success: true };
+  } else {
+    if (requestCount >= 15) {
+      requestCount = 0;
+    }
+    await delay(100);
+    const res = {
+      success: false,
+      error: 'Service temporarily unavailable',
+      message: 'Event API is experiencing high load'
+    };
+    const err = new Error('Service temporarily unavailable');
+    err.status = 503;
+    err.body = res;
+    throw err;
+  }
+}
+
+module.exports.handleAddEvent = handleAddEvent;

@@ -1,16 +1,17 @@
-const FAILURE_THRESHOLD = 3;
-const FAILURE_WINDOW = 30000;
-const RESET_TIMEOUT = 30000;
-
 class CircuitBreaker {
-  constructor() {
+  constructor(options = {}) {
+    this.failureThreshold = options.failureThreshold || 3;
+    this.failureWindow = options.failureWindow || 30000;
+    this.resetTimeout = options.resetTimeout || 30000;
+    this.retryDelays = options.retryDelays || [100, 200, 400];
+
     this.state = 'CLOSED';
     this.failures = [];
     this.nextAttempt = 0;
   }
 
   async sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   recordFailure() {
@@ -19,12 +20,12 @@ class CircuitBreaker {
     this.failures.push(now);
 
     this.failures = this.failures.filter(
-      timestamp => now - timestamp <= FAILURE_WINDOW
+      (timestamp) => now - timestamp <= this.failureWindow
     );
 
-    if (this.failures.length >= FAILURE_THRESHOLD) {
+    if (this.failures.length >= this.failureThreshold) {
       this.state = 'OPEN';
-      this.nextAttempt = now + RESET_TIMEOUT;
+      this.nextAttempt = now + this.resetTimeout;
     }
   }
 
@@ -44,9 +45,7 @@ class CircuitBreaker {
       this.state = 'HALF_OPEN';
     }
 
-    const delays = [100, 200, 400];
-
-    for (let attempt = 0; attempt <= delays.length; attempt++) {
+    for (let attempt = 0; attempt <= this.retryDelays.length; attempt++) {
       try {
         const result = await fn();
 
@@ -54,8 +53,8 @@ class CircuitBreaker {
 
         return result;
       } catch (err) {
-        if (attempt < delays.length) {
-          await this.sleep(delays[attempt]);
+        if (attempt < this.retryDelays.length) {
+          await this.sleep(this.retryDelays[attempt]);
           continue;
         }
 
@@ -63,7 +62,7 @@ class CircuitBreaker {
 
         if (this.state === 'HALF_OPEN') {
           this.state = 'OPEN';
-          this.nextAttempt = Date.now() + RESET_TIMEOUT;
+          this.nextAttempt = Date.now() + this.resetTimeout;
         }
 
         throw err;
@@ -72,4 +71,9 @@ class CircuitBreaker {
   }
 }
 
-module.exports = new CircuitBreaker();
+// default singleton for backward compatibility
+const defaultInstance = new CircuitBreaker();
+
+module.exports = defaultInstance;
+module.exports.CircuitBreaker = CircuitBreaker;
+module.exports.create = (opts) => new CircuitBreaker(opts);

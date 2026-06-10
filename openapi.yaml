@@ -1,0 +1,43 @@
+openapi: 3.0.0
+info:
+  title: Event Management API
+  version: '1.0.0'
+servers:
+  - url: http://localhost:3000
+paths:
+  /getUsers:
+    get:
+      summary: Returns list of users
+      responses:
+        '200':
+          description: OK
+  /getEvents:
+    get:
+      summary: Returns list of events
+      responses:
+        '200':
+          description: OK
+  /getEventsByUserId/{id}:
+    get:
+      summary: Returns events for a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /addEvent:
+    post:
+      summary: Adds an event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: OK

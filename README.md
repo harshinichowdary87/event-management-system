@@ -45,3 +45,41 @@ Updated:
 
 * `/getEventsByUserId` to fetch events in parallel.
 * `/addEvent` to use circuit breaker protection and retries.
+
+---
+
+## Architecture overview
+
+This project follows a simple layered architecture to separate concerns:
+
+- `routes/` — Route registration and HTTP-level concerns.
+- `controllers/` — Thin controllers that map requests to service calls.
+- `services/` — Business logic and orchestration, uses adapters and infrastructure.
+- `adapters/` — External API adapters (HTTP clients) that centralize retry/timeout/error handling.
+- `utils/` — Infrastructure utilities such as `circuitBreaker` and `logger`.
+
+Benefits:
+- Easier unit testing (services and adapters can be tested in isolation).
+- Replaceable external adapters for different environments (real vs mock).
+- Per-dependency circuit breakers and bulkheads to isolate failures.
+
+## Observability
+
+- Structured JSON logging is used via `utils/logger`.
+- Health and metrics endpoints are available:
+  - `GET /health` — basic liveness check
+  - `GET /metrics` — simple JSON metrics (request counts)
+
+## OpenAPI
+
+A minimal OpenAPI spec is included at `openapi.yaml` to document the public endpoints.
+
+## How to run tests
+
+Run unit and integration tests:
+
+```bash
+npm install
+npm test
+```
+

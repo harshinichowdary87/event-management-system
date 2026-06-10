@@ -1,69 +1,49 @@
 const fastify = require('fastify')({ logger: true });
 const listenMock = require('../mock-server');
-const circuitBreaker = require('../utils/circuitBreaker');
+const registerRoutes = require('../routes/eventRoutes');
+const metrics = require('../utils/metrics');
+const { logger } = require('../utils/logger');
 
-fastify.get('/getUsers', async (request, reply) => {
-    const resp = await fetch('http://event.com/getUsers');
-    const data = await resp.json();
-    reply.send(data); 
-});
-
-fastify.post('/addEvent', async (request, reply) => {
+// collect basic metrics and structured logs
+fastify.addHook('onRequest', (request, reply, done) => {
   try {
-    const data = await circuitBreaker.execute(async () => {
-      const resp = await fetch('http://event.com/addEvent', {
-        method: 'POST',
-        body: JSON.stringify({
-          id: new Date().getTime(),
-          ...request.body
-        })
-      });
-
-      if (!resp.ok) {
-        throw new Error(`External service returned ${resp.status}`);
-      }
-
-      return resp.json();
-    });
-
-    reply.send(data);
-  } catch (err) {
-    reply.code(503).send({
-      success: false,
-      error: 'Service temporarily unavailable'
-    });
+    const route = request.routerPath || request.raw.url;
+    metrics.incRequest(route);
+    logger.info('incoming request', { method: request.raw.method, url: request.raw.url });
+  } catch (e) {
+    logger.error('metrics onRequest error', e);
   }
+  done();
 });
 
-fastify.get('/getEvents', async (request, reply) => {  
-    const resp = await fetch('http://event.com/getEvents');
-    const data = await resp.json();
-    reply.send(data);
+fastify.addHook('onResponse', (request, reply, done) => {
+  try {
+    if (reply.statusCode >= 500) metrics.incError();
+  } catch (e) {
+    logger.error('metrics onResponse error', e);
+  }
+  done();
 });
 
-fastify.get('/getEventsByUserId/:id', async (request, reply) => {
-  const { id } = request.params;
+// register application routes (controllers handle service calls)
+registerRoutes(fastify);
 
-  const user = await fetch('http://event.com/getUserById/' + id);
-  const userData = await user.json();
-
-  const events = await Promise.all(
-    userData.events.map(async (eventId) => {
-      const event = await fetch(
-        'http://event.com/getEventById/' + eventId
-      );
-
-      return event.json();
-    })
-  );
-
-  reply.send(events);
+fastify.get('/', async (request, reply) => {
+  reply.send({
+    success: true,
+    message: 'Event management API',
+    routes: ['/getUsers', '/getEvents', '/getEventsByUserId/:id', '/addEvent', '/health', '/metrics']
+  });
 });
+
+// health and metrics endpoints
+fastify.get('/health', async () => ({ status: 'ok', uptimeMs: Date.now() - metrics.startTime }));
+fastify.get('/metrics', async () => metrics.getMetrics());
 
 fastify.listen({ port: 3000 }, (err) => {
-    listenMock();
-    if (err) {
-      fastify.log.error(err);
-      process.exit();
-    }
+  listenMock();
+  if (err) {
+    fastify.log.error(err);
+    process.exit();
+  }
 });

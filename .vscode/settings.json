@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^powershell -Command \"\\$pid = \\(Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue \\| Select-Object -First 1 -ExpandProperty OwningProcess\\); if \\(\\$pid\\) \\{ Stop-Process -Id \\$pid -Force; Write-Output \\('killed '\\+\\$pid\\) \\} else \\{ Write-Output 'none' \\}\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
